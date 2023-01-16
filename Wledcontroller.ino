@@ -98,17 +98,13 @@ char const *deviceNames[] = {"Stok",
                        "Decoratie",
                        "Bank",
                        "Jongens",
-                       "Kerstboom",
-                       "",
-                       ""};
+                       "Kerstboom"};
                
 char const *deviceIPs[] = {"43",
                      "47",
                      "1",
                      "137",
-                     "196",
-                     "",
-                     ""};
+                     "196"};
 
 byte currentDevice = 0;
 
@@ -122,10 +118,12 @@ bool showSettings = 0;
 // For the heartbeat led
 bool heartBeatStatus = 1;
 
-void displayRedraw() {
+void displayDraw() {
   tft.fillScreen(TFT_MYBACK);
-  tft.fillRect(0,0,47,319, TFT_MYBORDER);
-  tft.fillRect(47,0,239,36, TFT_MYBORDER);
+  // Top bar
+  tft.fillRect(0,0,239,36, TFT_MYBORDER);
+  // Side bar (excluding top part)
+  tft.fillRect(0,36,47,319, TFT_MYBORDER);
 }
 
 void displayOn() {
@@ -135,8 +133,23 @@ void displayOn() {
   tft.print("on");
 }
 
+void displayDeviceState() {
+  // Also Redraw state of device, on or off.
+  tft.setCursor(5,55);
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
+  if (power) {
+    tft.print(" on");
+  } else {
+    tft.print("off");
+  }
+}
+
 void displayIcons(int accented) {
-  tft.fillRect(0,0,47,319, TFT_MYBORDER);
+  // Redraw side bar (excluding top part)
+  tft.fillRect(0,100,47,319, TFT_MYBORDER);
+
+  // Now draw icons, accented is the selected 'page'.
   if (accented == 1) {
     tft.fillRect(5,179+((accented-1)*31),37,33, TFT_MYACCENT);
   }
@@ -181,18 +194,11 @@ void displayEffects() {
 }
 
 void displayHeader() {
-  tft.setCursor(55,5);
-  tft.setTextSize(2);
-  tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
-  if (power) {
-    tft.print(" on");
-  } else {
-    tft.print("off");
-  }
   tft.setCursor(5,5);
   tft.setTextSize(4);
+  tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
   tft.print(deviceNames[currentDevice]);
-  tft.setTextSize(4);
+  tft.setTextSize(2);
 }
 
 void displaySettings(bool clearBack) {
@@ -302,7 +308,7 @@ void setup() {
   tft.begin();
   tft.setRotation(0);
 
-  displayRedraw();
+  displayDraw();
   displayOn();
   Serial.println(millis());
   
@@ -367,10 +373,11 @@ void processInputs() {
   if (buttonChanges) {
     if (io.digitalRead(SX1509_JUP)==0) {
       power = !power;
-      displayHeader();
+      displayDeviceState();
     }
     if (io.digitalRead(SX1509_GA) == 0) {
       if(WiFi.status()== WL_CONNECTED){
+        // Set the device it's parameters.
         tft.setCursor(170, 25);
         tft.print("go.");
         // Send the two parameters.
@@ -407,7 +414,7 @@ void processInputs() {
       }
     }
     if (io.digitalRead(SX1509_JRIGHT) == 0) {
-      // Time test request
+      // Request state from device.
       if(WiFi.status()== WL_CONNECTED){
         HTTPClient http;    
         String serverPath = serverName + "";
@@ -432,6 +439,14 @@ void processInputs() {
         // Free resources
         http.end();
       }
+    }
+    if (io.digitalRead(SX1509_JLEFT) == 0) {
+      Serial.println(sizeof(deviceNames));
+      currentDevice++;
+      if (currentDevice >= (sizeof(deviceNames)/4)) {
+        currentDevice = 0;
+      }
+      displayHeader();
     }
     if (io.digitalRead(SX1509_JMID) == 0) {
       showSettings = !showSettings;
