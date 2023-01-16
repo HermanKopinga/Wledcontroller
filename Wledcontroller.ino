@@ -92,7 +92,8 @@ void IRAM_ATTR processButtons() {
 }
 
 // JSON smutz
-String serverName = "http://192.168.2.43:80/json/state";
+String serverName1 = "http://192.168.2.";
+String serverName2 = ":80/json/state";
 
 char const *deviceNames[] = {"Stok",
                        "Decoratie",
@@ -120,7 +121,7 @@ bool heartBeatStatus = 1;
 
 void displayDraw() {
   tft.fillScreen(TFT_MYBACK);
-  // Top bar
+  // Header
   tft.fillRect(0,0,239,36, TFT_MYBORDER);
   // Side bar (excluding top part)
   tft.fillRect(0,36,47,319, TFT_MYBORDER);
@@ -133,8 +134,13 @@ void displayOn() {
   tft.print("on");
 }
 
+inline void displayCommState(char *message) {
+  tft.setCursor(5, 85);
+  tft.print(message);
+}
+
 void displayDeviceState() {
-  // Also Redraw state of device, on or off.
+  // Redraw state of device, on or off.
   tft.setCursor(5,55);
   tft.setTextSize(2);
   tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
@@ -194,6 +200,8 @@ void displayEffects() {
 }
 
 void displayHeader() {
+  // This also clears the wifi state display, not that that was ever updated.
+  tft.fillRect(0,0,239,36, TFT_MYBORDER);
   tft.setCursor(5,5);
   tft.setTextSize(4);
   tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
@@ -341,7 +349,7 @@ void setup() {
   Serial.println(millis());
 }
 
-void readFaders () {
+void readFaders() {
   // Borrowed from earlier work on musicmonster
   // maybe add some running averaging? If fast enough
   for (b = 0; b < analogConnected; b++) {
@@ -377,13 +385,13 @@ void processInputs() {
     }
     if (io.digitalRead(SX1509_GA) == 0) {
       if(WiFi.status()== WL_CONNECTED){
-        // Set the device it's parameters.
-        tft.setCursor(170, 25);
-        tft.print("go.");
+        // Set the device parameters.
+        // First display state on screen
+        displayCommState("go.");
         // Send the two parameters.
         WiFiClient client;
         HTTPClient http;
-        http.begin(client, serverName);
+        http.begin(client, serverName1 + deviceIPs[currentDevice] + serverName2);
         // in CURL: curl -X POST "http://[WLED-IP]/json/state" -d '{"on":"t","bri":25}' -H "Content-Type: application/json"
        
         String json1 = "{\"on\":";
@@ -393,7 +401,6 @@ void processInputs() {
         String pwrjsonfalse = "false";
         http.addHeader("Content-Type", "application/json");
 
-        
         int httpResponseCode;
         //httpResponseCode = http.POST("{\"on\":false,\"bri\":25}");
         if (power) {
@@ -406,8 +413,9 @@ void processInputs() {
         
         Serial.print("HTTP Response code: ");
         Serial.println(httpResponseCode);
-        tft.setCursor(170, 25);
-        tft.print(httpResponseCode);
+        char placeholder[4];
+        itoa(httpResponseCode, placeholder, 10);
+        displayCommState(placeholder);
           
         // Free resources
         http.end();
@@ -417,7 +425,7 @@ void processInputs() {
       // Request state from device.
       if(WiFi.status()== WL_CONNECTED){
         HTTPClient http;    
-        String serverPath = serverName + "";
+        String serverPath = serverName1 + deviceIPs[currentDevice] + serverName2;
           
         // Your Domain name with URL path or IP address with path
         http.begin(serverPath.c_str());
@@ -441,7 +449,6 @@ void processInputs() {
       }
     }
     if (io.digitalRead(SX1509_JLEFT) == 0) {
-      Serial.println(sizeof(deviceNames));
       currentDevice++;
       if (currentDevice >= (sizeof(deviceNames)/4)) {
         currentDevice = 0;
@@ -460,7 +467,6 @@ void processInputs() {
   }
   
   // Update Rotary encoders
-
   if (faderChanges) {
     //pixels.fill(0xFF0000);
     //pixels.setPixelColor(0, 20, 20, 20);
