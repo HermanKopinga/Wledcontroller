@@ -103,7 +103,7 @@ char const *deviceNames[] = {"Stok",
                
 char const *deviceIPs[] = {"43",
                      "47",
-                     "1",
+                     "39",
                      "137",
                      "196"};
 
@@ -127,15 +127,12 @@ void displayDraw() {
   tft.fillRect(0,36,47,319, TFT_MYBORDER);
 }
 
-void displayOn() {
+inline void displayCommState(char const *message, bool clear=1) {
   tft.setTextSize(2);
-  tft.setTextColor(ILI9341_WHITE, ILI9341_RED);  
-  tft.setCursor(170, 5);
-  tft.print("on");
-}
-
-inline void displayCommState(char *message) {
-  tft.setCursor(5, 85);
+  tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
+  if (clear) {
+    tft.setCursor(5, 85);
+  }
   tft.print(message);
 }
 
@@ -200,7 +197,6 @@ void displayEffects() {
 }
 
 void displayHeader() {
-  // This also clears the wifi state display, not that that was ever updated.
   tft.fillRect(0,0,239,36, TFT_MYBORDER);
   tft.setCursor(5,5);
   tft.setTextSize(4);
@@ -317,25 +313,23 @@ void setup() {
   tft.setRotation(0);
 
   displayDraw();
-  displayOn();
+  displayCommState("on");
   Serial.println(millis());
   
   // Turn on Wifi
   WiFi.mode(WIFI_STA);
   WiFi.begin("Lief delen, niet stelen.", "gewoondoen");
   Serial.print("Connecting to WiFi ..");
-  tft.setCursor(170, 5);
   for (int i = 0; i < 5; i++) {
     if (WiFi.status() != WL_CONNECTED) {
       Serial.print('.');
-      tft.print('.');
+      displayCommState(".", 0);
       delay(1000);
       wifi = 0;
     } else {
       wifi = 1;
       Serial.println(WiFi.localIP());
-      tft.setCursor(170, 5);
-      tft.print("wifi");
+      displayCommState("wifi");
       break;
     }
   }
