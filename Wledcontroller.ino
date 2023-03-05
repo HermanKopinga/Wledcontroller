@@ -310,7 +310,7 @@ void setup() {
   
   // Display stuff
   tft.begin();
-  tft.setRotation(0);
+  tft.setRotation(2);
 
   displayDraw();
   displayCommState("on");
