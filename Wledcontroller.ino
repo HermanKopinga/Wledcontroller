@@ -29,7 +29,10 @@ const byte SX1509_JDOWN     = 14; // Directional pad
 const byte SX1509_JLEFT     = 13; // Directional pad
 const byte SX1509_JRIGHT    = 12; // Directional pad
 const byte SX1509_JMID      = 11; // Directional pad
-const byte SX1509_GA        =  6; // DBig blue button
+const byte SX1509_GA        =  6; // Big blue button
+const byte SX1509_WTOP      =  8; // Top white button
+const byte SX1509_WBOTTOM   =  9; // Bottom white button
+const byte SX1509_ENCODER   = 10; // Encoder button
 const byte SX1509_4067_S0   =  0; // 4067 analog multiplexer
 const byte SX1509_4067_S1   =  1; // 4067 analog multiplexer
 const byte SX1509_4067_S2   =  2; // 4067 analog multiplexer
@@ -113,7 +116,7 @@ bool wifi = 0;
 
 // Local values to be sent remote
 byte brightness = 0;
-bool power = 0;
+bool power = 1;
 bool showSettings = 0;
 
 // For the heartbeat led
@@ -128,24 +131,26 @@ void displayDraw() {
 }
 
 inline void displayCommState(char const *message, bool clear=1) {
-  tft.setTextSize(2);
+  tft.setTextSize(1);
   tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
   if (clear) {
     tft.setCursor(5, 85);
   }
   tft.print(message);
+  tft.setTextSize(2);
 }
 
 void displayDeviceState() {
   // Redraw state of device, on or off.
-  tft.setCursor(5,55);
+  /*tft.setCursor(5,55);
   tft.setTextSize(2);
   tft.setTextColor(TFT_MYORANGE, TFT_MYBORDER);
   if (power) {
-    tft.print(" on");
+    tft.print("aan");
   } else {
-    tft.print("off");
-  }
+    tft.print("uit");
+  }*/
+  io.digitalWrite(SX1509_WHITELED1, !power);
 }
 
 void displayIcons(int accented) {
@@ -177,6 +182,7 @@ void displayEffects() {
   tft.setTextColor(TFT_MYORANGE, TFT_MYBACK);
   tft.fillScreen(TFT_MYBACK);  
   tft.setCursor(0,0);
+  tft.setTextSize(2);
   tft.println("Solid");
   tft.println("Blink");
   tft.println("Breathe");
@@ -206,19 +212,20 @@ void displayHeader() {
 }
 
 void displaySettings(bool clearBack) {
+  // Only needed on first run of this.
   displayIcons(ACCENTED_SETTINGS);
   tft.setViewport(55, 43, 184, 276);
   if (clearBack) {
     tft.fillScreen(TFT_MYBACK);  
   }
   tft.setCursor(10, 10);
-  tft.printf("%03d",analog_stored_state[3]/16);
-  tft.setCursor(10, 30);
-  tft.printf("%03d",analog_stored_state[2]/16);
-  tft.setCursor(10, 50);
-  tft.printf("%03d",analog_stored_state[1]/16);
-  tft.setCursor(10, 70);
   tft.printf("%03d",analog_stored_state[0]/16);
+  tft.setCursor(10, 30);
+  tft.printf("%03d",analog_stored_state[1]/16);
+  tft.setCursor(10, 50);
+  tft.printf("%03d",analog_stored_state[2]/16);
+  tft.setCursor(10, 70);
+  tft.printf("%03d",analog_stored_state[3]/16);
   tft.setCursor(10, 90);
   tft.printf("%03d",analog_stored_state[4]/16);
   tft.setCursor(10,200);
@@ -256,6 +263,9 @@ void multiplexerSetup() {
   io.pinMode(SX1509_JRIGHT,    INPUT_PULLUP);
   io.pinMode(SX1509_JMID,      INPUT_PULLUP);
   io.pinMode(SX1509_GA,        INPUT_PULLUP);
+  io.pinMode(SX1509_WTOP,      INPUT_PULLUP);
+  io.pinMode(SX1509_WBOTTOM,   INPUT_PULLUP);
+  io.pinMode(SX1509_ENCODER,   INPUT_PULLUP);
   io.pinMode(SX1509_4067_S0,   OUTPUT);
   io.pinMode(SX1509_4067_S1,   OUTPUT);
   io.pinMode(SX1509_4067_S2,   OUTPUT);
@@ -267,6 +277,9 @@ void multiplexerSetup() {
   io.enableInterrupt(SX1509_JRIGHT, CHANGE);
   io.enableInterrupt(SX1509_JMID, CHANGE);
   io.enableInterrupt(SX1509_GA, CHANGE);
+  io.enableInterrupt(SX1509_WTOP, CHANGE);
+  io.enableInterrupt(SX1509_WBOTTOM, CHANGE);
+  io.enableInterrupt(SX1509_ENCODER, CHANGE);
 
   io.debouncePin(SX1509_JUP); // Enable debounce
   io.debouncePin(SX1509_JDOWN); // Enable debounce
@@ -274,6 +287,9 @@ void multiplexerSetup() {
   io.debouncePin(SX1509_JRIGHT); // Enable debounce
   io.debouncePin(SX1509_JMID); // Enable debounce
   io.debouncePin(SX1509_GA); // Enable debounce
+  io.debouncePin(SX1509_WTOP); // Enable debounce
+  io.debouncePin(SX1509_WBOTTOM); // Enable debounce
+  io.debouncePin(SX1509_ENCODER); // Enable debounce
 
   attachInterrupt(digitalPinToInterrupt(SX1509_INTERRUPT_PIN), processButtons, FALLING);
   
@@ -339,6 +355,7 @@ void setup() {
   Serial.println(millis());
   displayEffects();
   displayHeader();
+  displayDeviceState();
   Serial.println(deviceNames[currentDevice]);
   Serial.println(millis());
 }
@@ -373,7 +390,7 @@ void processInputs() {
   readFaders();
   // Check interrupt state of SX1509 and process inputs when toggled
   if (buttonChanges) {
-    if (io.digitalRead(SX1509_JUP)==0) {
+    if (io.digitalRead(SX1509_WTOP)==0) {
       power = !power;
       displayDeviceState();
     }
@@ -395,14 +412,19 @@ void processInputs() {
         String pwrjsonfalse = "false";
         http.addHeader("Content-Type", "application/json");
 
+        // Workaround, WLED doesn't accept brightness 0, it wants you to turn it off.
+        // modifying the stored state here has that effect (hacky, I know).
+        if (analog_stored_state[3] <= 16) {
+          analog_stored_state[3] = 16;
+        }
         int httpResponseCode;
         //httpResponseCode = http.POST("{\"on\":false,\"bri\":25}");
         if (power) {
-          httpResponseCode = http.POST(json1 + pwrjsontrue + json2 + analog_stored_state[0]/16 + json3);  
-          Serial.println(json1 + pwrjsontrue + json2 + analog_stored_state[0]/16 + json3);
+          httpResponseCode = http.POST(json1 + pwrjsontrue + json2 + analog_stored_state[3]/16 + json3);  
+          Serial.println(json1 + pwrjsontrue + json2 + analog_stored_state[3]/16 + json3);
         } else {
-          httpResponseCode = http.POST(json1 + pwrjsonfalse + json2 + analog_stored_state[0]/16 + json3);  
-          Serial.println(json1 + pwrjsonfalse + json2 + analog_stored_state[0]/16 + json3);
+          httpResponseCode = http.POST(json1 + pwrjsonfalse + json2 + analog_stored_state[3]/16 + json3);  
+          Serial.println(json1 + pwrjsonfalse + json2 + analog_stored_state[3]/16 + json3);
         } 
         
         Serial.print("HTTP Response code: ");
@@ -413,6 +435,9 @@ void processInputs() {
           
         // Free resources
         http.end();
+      }
+      else {
+        displayCommState("no wifi");
       }
     }
     if (io.digitalRead(SX1509_JRIGHT) == 0) {
@@ -442,33 +467,30 @@ void processInputs() {
         http.end();
       }
     }
-    if (io.digitalRead(SX1509_JLEFT) == 0) {
+    if (io.digitalRead(SX1509_WBOTTOM) == 0) {
       currentDevice++;
       if (currentDevice >= (sizeof(deviceNames)/4)) {
         currentDevice = 0;
       }
       displayHeader();
     }
-    if (io.digitalRead(SX1509_JMID) == 0) {
+    if (io.digitalRead(SX1509_ENCODER) == 0) {
       showSettings = !showSettings;
       if (showSettings) {
         displaySettings(1);
       } else {
         displayEffects();
       }
-      
     }
   }
   
   // Update Rotary encoders
   if (faderChanges) {
-    //pixels.fill(0xFF0000);
-    //pixels.setPixelColor(0, 20, 20, 20);
-    int fader = analog_stored_state[0]/16;
+    int fader = analog_stored_state[3]/16;
     fader = 256;
-    int r = analog_stored_state[3]/16*(fader/256);
-    int g = analog_stored_state[2]/16*(fader/256);
-    int b = analog_stored_state[1]/16*(fader/256);
+    int r = analog_stored_state[0]/16;//*(fader/256);
+    int g = analog_stored_state[1]/16;//*(fader/256);
+    int b = analog_stored_state[2]/16;//*(fader/256);
     strip.setLedColorData(0, g, r, b);
     strip.show();
   }
@@ -491,10 +513,10 @@ void loop() {
     previousMillis = currentMillis;
     processInputs();
   }
-  if ((unsigned long)(currentMillis - previousHeartbeat) >= heartbeatBreak) {
+/*  if ((unsigned long)(currentMillis - previousHeartbeat) >= heartbeatBreak) {
     previousHeartbeat = currentMillis;
     heartBeatStatus = !heartBeatStatus;
     io.digitalWrite(SX1509_WHITELED2, heartBeatStatus);
-  }
+  }*/
   
 }
