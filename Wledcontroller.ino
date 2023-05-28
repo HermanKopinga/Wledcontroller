@@ -1,16 +1,16 @@
 #include <HTTPClient.h>
 
 /*
- * esp32 v 2.0.5 seems to have an issue with the SPI screen
- * neopixel seems to require something more recent than 2.0.1
+ * Wled controller in hardware, by herman@kopinga.nl
  * 
+ * Runs (with some curious warnings and something akin to a power problem) on ESP v 2.0.8 and TFT_eSPI 2.5.0 with Adafruit Neopixel as pixel driver.
+ * Potential problem: pin is not reliably switching for some ESP32 reason.
  */
-#include <Freenove_WS2812_Lib_for_ESP32.h>
 
+#include <Adafruit_NeoPixel.h>
 #include <TFT_eSPI.h> // Hardware-specific library
 #include <SPI.h>
 #include <WiFi.h>
-
 #include <Wire.h>           // Include the I2C library (required)
 #include <SparkFunSX1509.h> //Click here for the library: http://librarymanager/All#SparkFun_SX1509
 
@@ -40,12 +40,11 @@ const byte SX1509_4067_S3   =  3; // 4067 analog multiplexer
 
 const byte SX1509_INTERRUPT_PIN = 27;
 
-
 // For preview leds:
 #define NUMPIXELS 3
 #define LEDS_PIN 33
 #define CHANNEL    0
-Freenove_ESP32_WS2812 strip = Freenove_ESP32_WS2812(NUMPIXELS, LEDS_PIN, CHANNEL);
+Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_RGB + NEO_KHZ800);
 
 SX1509 io;                        // Create an SX1509 object to be used throughout
 
@@ -128,6 +127,19 @@ void displayDraw() {
   tft.fillRect(0,0,239,36, TFT_MYBORDER);
   // Side bar (excluding top part)
   tft.fillRect(0,36,47,319, TFT_MYBORDER);
+}
+
+void ledSwoop() {
+  for(int i=0; i<NUMPIXELS; i++) { // For each pixel...
+
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright green color:
+    pixels.setPixelColor(i, pixels.Color(0, 150, 0));
+
+    pixels.show();   // Send the updated pixel colors to the hardware.
+
+    delay(500); // Pause before next pass through loop
+  }
 }
 
 inline void displayCommState(char const *message, bool clear=1) {
@@ -316,11 +328,21 @@ void setup() {
   pinMode(sclPin, OUTPUT);
   pinMode(analog4067pin, INPUT);
   digitalWrite(backlightpin, 1); 
+  delay(1000);
+  digitalWrite(backlightpin, 0); 
+  delay(1000);
+  digitalWrite(backlightpin, 1); 
 
+  
   
   Serial.begin(115200);
   Serial.println("Herman was here... ");
   Serial.println(millis());
+
+  pixels.begin();
+  ledSwoop();
+  
+  Serial.println("led done");
 
   multiplexerSetup();
   
@@ -350,8 +372,6 @@ void setup() {
     }
   }
 
-  strip.begin();
-    
   Serial.println(millis());
   displayEffects();
   displayHeader();
@@ -486,13 +506,15 @@ void processInputs() {
   
   // Update Rotary encoders
   if (faderChanges) {
-    int fader = analog_stored_state[3]/16;
-    fader = 256;
+    /*int fader = analog_stored_state[3]/16;
+    fader = 256;*/
     int r = analog_stored_state[0]/16;//*(fader/256);
     int g = analog_stored_state[1]/16;//*(fader/256);
     int b = analog_stored_state[2]/16;//*(fader/256);
-    strip.setLedColorData(0, g, r, b);
-    strip.show();
+    pixels.setPixelColor(0, pixels.Color(r, g, b));
+    pixels.setPixelColor(1, pixels.Color(r, g, b));
+    pixels.setPixelColor(2, pixels.Color(r, g, b));
+    pixels.show();
   }
   
   // If changes, update screen
