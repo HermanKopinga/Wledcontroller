@@ -1,5 +1,3 @@
-#include <HTTPClient.h>
-
 /*
  * Wled controller in hardware, by herman@kopinga.nl
  * 
@@ -7,6 +5,7 @@
  * Potential problem: pin is not reliably switching for some ESP32 reason.
  */
 
+#include <HTTPClient.h>
 #include <Adafruit_NeoPixel.h>
 #include <TFT_eSPI.h> // Hardware-specific library
 #include <SPI.h>
@@ -43,8 +42,8 @@ const byte SX1509_INTERRUPT_PIN = 27;
 // For preview leds:
 #define NUMPIXELS 3
 #define LEDS_PIN 33
-#define CHANNEL    0
-Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_RGB + NEO_KHZ800);
+
+Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
 SX1509 io;                        // Create an SX1509 object to be used throughout
 
@@ -52,7 +51,7 @@ SX1509 io;                        // Create an SX1509 object to be used througho
 
 TFT_eSPI tft = TFT_eSPI();       // Invoke custom library
 
-// Color is 16-bit, and that includes Red, Green and Blue in a 16-bit variable. 
+// Color is 16-bit, that includes Red, Green and Blue in a 16-bit variable. 
 // The way the color is packed in is the top 5 bits are red, the middle 6 bits are green and the bottom 5 bits are blue.
 
 #define TFT_MYGREY   0x5AEB
@@ -100,15 +99,13 @@ String serverName2 = ":80/json/state";
 char const *deviceNames[] = {"Stok",
                        "Decoratie",
                        "Bank",
-                       "Jongens",
-                       "Kerstboom"};
-               
+                       "Jongens"};
+//Kerstboom               
 char const *deviceIPs[] = {"43",
                      "47",
                      "39",
-                     "137",
-                     "196"};
-
+                     "137"};
+//196
 byte currentDevice = 0;
 
 bool wifi = 0;
@@ -207,8 +204,8 @@ void displayEffects() {
   tft.println("Rainbow");
   tft.println("Scan");
   tft.println("Scan Dual");
-  tft.println("Fade");
   tft.println("Theater");
+  tft.println("Fade");
   tft.println("Theater Rainbow");
   tft.println("Running");
   tft.resetViewport();
@@ -231,16 +228,34 @@ void displaySettings(bool clearBack) {
     tft.fillScreen(TFT_MYBACK);  
   }
   tft.setCursor(10, 10);
-  tft.printf("%03d",analog_stored_state[0]/16);
+  tft.printf("0 %03d",analog_stored_state[0]/16);
   tft.setCursor(10, 30);
-  tft.printf("%03d",analog_stored_state[1]/16);
+  tft.printf("1 %03d",analog_stored_state[1]/16);
   tft.setCursor(10, 50);
-  tft.printf("%03d",analog_stored_state[2]/16);
+  tft.printf("2 %03d",analog_stored_state[2]/16);
   tft.setCursor(10, 70);
-  tft.printf("%03d",analog_stored_state[3]/16);
+  tft.printf("3 %03d",analog_stored_state[3]/16);
   tft.setCursor(10, 90);
-  tft.printf("%03d",analog_stored_state[4]/16);
-  tft.setCursor(10,200);
+  tft.printf("4 %03d",analog_stored_state[4]/16);
+  tft.setCursor(10, 110);
+  tft.printf("5 %03d",analog_stored_state[5]/16);
+  tft.setCursor(10, 130);
+  tft.printf("6 %03d",analog_stored_state[6]/16);
+  tft.setCursor(10, 150);
+  tft.printf("7 %03d",analog_stored_state[7]/16);
+  tft.setCursor(10, 170);
+  tft.printf("8 %03d",analog_stored_state[8]/16);
+  tft.setCursor(80, 10);
+  tft.printf(" 9 %03d",analog_stored_state[9]/16);
+  tft.setCursor(80, 30);
+  tft.printf("10 %03d",analog_stored_state[10]/16);
+  tft.setCursor(80, 50);
+  tft.printf("11 %03d",analog_stored_state[11]/16);
+  tft.setCursor(80, 70);
+  tft.printf("12 %03d",analog_stored_state[12]/16);
+
+
+  tft.setCursor(10,220);
   tft.print(io.digitalRead(SX1509_JUP));
   tft.print(io.digitalRead(SX1509_JDOWN));
   tft.print(io.digitalRead(SX1509_JLEFT));
@@ -340,7 +355,7 @@ void setup() {
   Serial.println(millis());
 
   pixels.begin();
-  ledSwoop();
+  //ledSwoop();
   
   Serial.println("led done");
 
@@ -502,18 +517,31 @@ void processInputs() {
         displayEffects();
       }
     }
+    if (io.digitalRead(SX1509_JLEFT) == 0) {
+      digitalWrite(backlightpin, 0); 
+      delay(200);
+      digitalWrite(backlightpin, 1); 
+      pixels.begin();
+
+    }
   }
   
-  // Update Rotary encoders
+  // Update fader changes
   if (faderChanges) {
     /*int fader = analog_stored_state[3]/16;
     fader = 256;*/
-    int r = analog_stored_state[0]/16;//*(fader/256);
-    int g = analog_stored_state[1]/16;//*(fader/256);
-    int b = analog_stored_state[2]/16;//*(fader/256);
-    pixels.setPixelColor(0, pixels.Color(r, g, b));
-    pixels.setPixelColor(1, pixels.Color(r, g, b));
-    pixels.setPixelColor(2, pixels.Color(r, g, b));
+    int r1 = analog_stored_state[12]/16;//*(fader/256);
+    int g1 = analog_stored_state[11]/16;//*(fader/256);
+    int b1 = analog_stored_state[10]/16;//*(fader/256);
+    int r2 = analog_stored_state[8]/16;//*(fader/256);
+    int g2 = analog_stored_state[7]/16;//*(fader/256);
+    int b2 = analog_stored_state[6]/16;//*(fader/256);
+    int r3 = analog_stored_state[0]/16;//*(fader/256);
+    int g3 = analog_stored_state[1]/16;//*(fader/256);
+    int b3 = analog_stored_state[2]/16;//*(fader/256);
+    pixels.setPixelColor(0, pixels.Color(r3, g3, b3));
+    pixels.setPixelColor(1, pixels.Color(r2, g2, b2));
+    pixels.setPixelColor(2, pixels.Color(r1, g1, b1));
     pixels.show();
   }
   
