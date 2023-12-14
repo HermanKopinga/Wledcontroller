@@ -6,12 +6,13 @@
  */
 
 #include <HTTPClient.h>
-#include <Adafruit_NeoPixel.h>
-#include <TFT_eSPI.h> // Hardware-specific library
+#include <Adafruit_NeoPixel.h> // For the three local LEDS to show selected color.
+#include <TFT_eSPI.h>          // Hardware-specific library
 #include <SPI.h>
 #include <WiFi.h>
-#include <Wire.h>           // Include the I2C library (required)
-#include <SparkFunSX1509.h> //Click here for the library: http://librarymanager/All#SparkFun_SX1509
+#include <Wire.h>              // Include the I2C library (required)
+#include <SparkFunSX1509.h>    // Click here for the library: http://librarymanager/All#SparkFun_SX1509
+#include <ArduinoJson.h>
 
 #include "heart.h"
 #include "smiley.h"
@@ -40,7 +41,7 @@ const byte SX1509_4067_S3   =  3; // 4067 analog multiplexer
 const byte SX1509_INTERRUPT_PIN = 27;
 
 // For preview leds:
-#define NUMPIXELS 3
+#define NUMPIXELS 12
 #define LEDS_PIN 33
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
@@ -99,12 +100,14 @@ String serverName2 = ":80/json/state";
 char const *deviceNames[] = {"Stok",
                        "Decoratie",
                        "Bank",
-                       "Jongens"};
+                       "Jongens",
+                       "Tester"};
 //Kerstboom               
 char const *deviceIPs[] = {"43",
                      "47",
                      "39",
-                     "137"};
+                     "137",
+                     "91"};
 //196
 byte currentDevice = 0;
 
@@ -343,22 +346,22 @@ void setup() {
   pinMode(sclPin, OUTPUT);
   pinMode(analog4067pin, INPUT);
   digitalWrite(backlightpin, 1); 
-  delay(1000);
+  delay(400);
   digitalWrite(backlightpin, 0); 
-  delay(1000);
+  delay(400);
   digitalWrite(backlightpin, 1); 
 
-  
-  
   Serial.begin(115200);
   Serial.println("Herman was here... ");
   Serial.println(millis());
 
   pixels.begin();
+  pixels.show(); // Initialize all leds 'off'.
   //ledSwoop();
   
   Serial.println("led done");
 
+  // SX1509 gets its own setup function.
   multiplexerSetup();
   
   // Display stuff
@@ -386,6 +389,31 @@ void setup() {
       break;
     }
   }
+
+  // Allocate the JSON document
+  //
+  // Inside the brackets, 1000 is the RAM allocated to this document.
+  // Use arduinojson.org/v6/assistant to compute the capacity.
+  // Capacity required was initially 384, so 1000 should do nicely for a while :)
+  StaticJsonDocument<1000> commandJson;
+  JsonArray seg_0_col = commandJson["seg"][0].createNestedArray("col");
+  commandJson["on"] = true;
+  commandJson["bri"] = 255;
+  JsonArray seg_0_col_0 = seg_0_col.createNestedArray();
+  seg_0_col_0.add(0);
+  seg_0_col_0.add(0);
+  seg_0_col_0.add(0);
+  JsonArray seg_0_col_1 = seg_0_col.createNestedArray();
+  seg_0_col_1.add(0);
+  seg_0_col_1.add(0);
+  seg_0_col_1.add(0);
+  JsonArray seg_0_col_2 = seg_0_col.createNestedArray();
+  seg_0_col_2.add(0);
+  seg_0_col_2.add(0);
+  seg_0_col_2.add(0);
+
+  // For testing:
+  serializeJson(commandJson, Serial);
 
   Serial.println(millis());
   displayEffects();
@@ -424,22 +452,20 @@ void processInputs() {
   // Sample all analog inputs and compare to stored averages.
   readFaders();
   // Check interrupt state of SX1509 and process inputs when toggled
+  // This variable is changed in the Interrupt service routine 
   if (buttonChanges) {
-    if (io.digitalRead(SX1509_WTOP)==0) {
-      power = !power;
-      displayDeviceState();
-    }
+    // Transmit current parameters to device.
     if (io.digitalRead(SX1509_GA) == 0) {
       if(WiFi.status()== WL_CONNECTED){
         // Set the device parameters.
         // First display state on screen
-        displayCommState("go.");
+        displayCommState("go. ");
         // Send the two parameters.
         WiFiClient client;
         HTTPClient http;
         http.begin(client, serverName1 + deviceIPs[currentDevice] + serverName2);
-        // in CURL: curl -X POST "http://[WLED-IP]/json/state" -d '{"on":"t","bri":25}' -H "Content-Type: application/json"
-       
+        // simple in CURL: curl -X POST "http://[WLED-IP]/json/state" -d '{"on":"t","bri":25}' -H "Content-Type: application/json"
+        // colors in CURL: curl -X POST "http://[WLED-IP]/json/state" -d '{"seg":[{"col":[[255,170,0],[0,255,0],[64,64,64]]}]}' -H "Content-Type: application/json"
         String json1 = "{\"on\":";
         String json2 = ",\"bri\":";
         String json3 = "}";
@@ -475,13 +501,15 @@ void processInputs() {
         displayCommState("no wifi");
       }
     }
+    // Moving right on joystick (left, because mounted upside down) gets info from the current
+    // device and prints it on the serial port.
+    // ToDo: also show some details on screen when in settings mode
     if (io.digitalRead(SX1509_JRIGHT) == 0) {
       // Request state from device.
       if(WiFi.status()== WL_CONNECTED){
         HTTPClient http;    
         String serverPath = serverName1 + deviceIPs[currentDevice] + serverName2;
           
-        // Your Domain name with URL path or IP address with path
         http.begin(serverPath.c_str());
     
         int httpResponseCode = http.GET();
@@ -491,8 +519,9 @@ void processInputs() {
           Serial.println(httpResponseCode);
           String payload = http.getString();
           Serial.println(payload);
-          tft.setCursor(170, 25);
-          tft.print(httpResponseCode);
+          char placeholder[4];
+          itoa(httpResponseCode, placeholder, 10);
+          displayCommState(placeholder);
         }
         else {
           Serial.print("Error code: ");
@@ -502,6 +531,19 @@ void processInputs() {
         http.end();
       }
     }
+    // Moving the joystick right (joystick is mounted upside down) simply blinks the backlight.
+    if (io.digitalRead(SX1509_JLEFT) == 0) {
+      digitalWrite(backlightpin, 0); 
+      delay(200);
+      digitalWrite(backlightpin, 1); 
+      pixels.begin();
+    }
+    // Top white button toggles power for device.
+    if (io.digitalRead(SX1509_WTOP)==0) {
+      power = !power;
+      displayDeviceState();
+    }
+    // The lower white button selects the next device.
     if (io.digitalRead(SX1509_WBOTTOM) == 0) {
       currentDevice++;
       if (currentDevice >= (sizeof(deviceNames)/4)) {
@@ -509,6 +551,7 @@ void processInputs() {
       }
       displayHeader();
     }
+    // Pressing the encoder selects the settings page (currently analog values)
     if (io.digitalRead(SX1509_ENCODER) == 0) {
       showSettings = !showSettings;
       if (showSettings) {
@@ -517,16 +560,9 @@ void processInputs() {
         displayEffects();
       }
     }
-    if (io.digitalRead(SX1509_JLEFT) == 0) {
-      digitalWrite(backlightpin, 0); 
-      delay(200);
-      digitalWrite(backlightpin, 1); 
-      pixels.begin();
-
-    }
   }
   
-  // Update fader changes
+  // Update local leds after fader changes
   if (faderChanges) {
     /*int fader = analog_stored_state[3]/16;
     fader = 256;*/
@@ -556,8 +592,9 @@ void processInputs() {
   }
 }
 
+// Short and sweet main loop, all actions are currently input reactive.
 void loop() {
-  // put your main code here, to run repeatedly:
+  // Runs currently at 10 Hz
   currentMillis = millis();
   if ((unsigned long)(currentMillis - previousMillis) >= millisBreak) {
     previousMillis = currentMillis;
@@ -567,6 +604,5 @@ void loop() {
     previousHeartbeat = currentMillis;
     heartBeatStatus = !heartBeatStatus;
     io.digitalWrite(SX1509_WHITELED2, heartBeatStatus);
-  }*/
-  
+  }*/  
 }
