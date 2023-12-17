@@ -218,7 +218,9 @@ void displayEffects() {
   tft.fillScreen(TFT_MYBACK);
   tft.setCursor(0, 0);
   tft.setTextSize(2);
+  tft.setTextColor(TFT_MYBACK, TFT_MYORANGE);
   tft.println("Solid");
+  tft.setTextColor(TFT_MYORANGE, TFT_MYBACK);
   tft.println("Blink");
   tft.println("Breathe");
   tft.println("Wipe");
@@ -427,14 +429,16 @@ void serializeInput () {
   // Use arduinojson.org/v6/assistant to compute the capacity.
   // Capacity required was initially 384, so 1000 should do nicely for a while :)
   StaticJsonDocument<1000> commandJson;
-  JsonArray seg_0_col = commandJson["seg"][0].createNestedArray("col");
+  JsonObject seg_0 = commandJson["seg"].createNestedObject();
+  JsonArray seg_0_col = seg_0.createNestedArray("col");
   if (power) { 
     commandJson["on"] = true;
   } else { 
     commandJson["on"] = false;
   }
   commandJson["bri"] = 255;
-
+  seg_0["fx"] = 0;
+  
   JsonArray seg_0_col_0 = seg_0_col.createNestedArray();
   seg_0_col_0.add(r1);
   seg_0_col_0.add(g1);
