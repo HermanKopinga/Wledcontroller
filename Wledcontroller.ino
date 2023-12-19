@@ -41,7 +41,7 @@ const byte SX1509_4067_S3 = 3;    // 4067 analog multiplexer
 const byte SX1509_INTERRUPT_PIN = 27;
 
 // For preview leds:
-#define NUMPIXELS 12
+#define NUMPIXELS 10 // There are only 3 visible but because of sourcing thingies I've mounted 10.
 #define LEDS_PIN 33
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
@@ -92,7 +92,6 @@ int g3 = 0;
 int b3 = 0;
 
 // Analog 4067 stuff
-
 byte b;
 int analog_state;
 int analog_stored_state[15];
@@ -110,16 +109,17 @@ void IRAM_ATTR processButtons() {
 // JSON smutz
 String serverName1 = "http://192.168.2.";
 String serverName2 = ":80/json/state";
+char serializedJson[255];  // String to put the result in before transmitting.
 
-char const *deviceNames[] = { "Stok",
-                              "Decoratie",
+char const *deviceNames[] = { "Decoratie",
+                              "Stok",
                               "Bank",
                               "Jongens",
                               "Tester",
                               "Kerstboom" };
 
-char const *deviceIPs[] = { "43",
-                            "47",
+char const *deviceIPs[] = { "47",
+                            "43",
                             "39",
                             "137",
                             "91",
@@ -131,12 +131,35 @@ bool wifi = 0;
 // Local values to be sent remote
 byte brightness = 0;
 bool power = 1;
-bool showSettings = 0;
+
+// User interface stuff
+#define INTERFACEEFFECTS  0
+#define INTERFACESETTINGS 1
+#define INTERFACEFAVOURITES 2 // not used yet
+int interfaceMode = INTERFACEEFFECTS;
 
 // For the heartbeat led
 bool heartBeatStatus = 1;
 
-char serializedJson[255];  // String to put the result in before transmitting.
+// Effect stuff
+int currentEffect = 0;
+char const *effectList[] = { "Solid",
+                             "Blink",
+                             "Breathe",
+                             "Wipe",
+                             "Wipe Random",
+                             "Random Colors",
+                             "Sweep",
+                             "Dynamic",
+                             "Colorloop",
+                             "Rainbow",
+                             "Scan",
+                             "Scan Dual",
+                             "Theater",
+                             "Fade",
+                             "Theater Rainbow",
+                             "Running" };
+
 
 void displayDraw() {
   tft.fillScreen(TFT_MYBACK);
@@ -218,24 +241,16 @@ void displayEffects() {
   tft.fillScreen(TFT_MYBACK);
   tft.setCursor(0, 0);
   tft.setTextSize(2);
-  tft.setTextColor(TFT_MYBACK, TFT_MYORANGE);
-  tft.println("Solid");
-  tft.setTextColor(TFT_MYORANGE, TFT_MYBACK);
-  tft.println("Blink");
-  tft.println("Breathe");
-  tft.println("Wipe");
-  tft.println("Wipe Random");
-  tft.println("Random Colors");
-  tft.println("Sweep");
-  tft.println("Dynamic");
-  tft.println("Colorloop");
-  tft.println("Rainbow");
-  tft.println("Scan");
-  tft.println("Scan Dual");
-  tft.println("Theater");
-  tft.println("Fade");
-  tft.println("Theater Rainbow");
-  tft.println("Running");
+
+  for (int i=0; i < sizeof(effectList)/4;i++){
+    if (i == currentEffect) {
+      tft.setTextColor(TFT_MYBACK, TFT_MYORANGE);
+    }
+    tft.println(effectList[i]);
+    if (i == currentEffect) {
+      tft.setTextColor(TFT_MYORANGE, TFT_MYBACK);
+    }
+  }
   tft.resetViewport();
 }
 
@@ -574,6 +589,28 @@ void processInputs() {
       digitalWrite(backlightpin, 1);
       pixels.begin();
     }
+    // Moving the joystick down, next effect, this will become the rotary.
+    if (io.digitalRead(SX1509_JUP) == 0) {
+      // For effect mode only:
+      if (interfaceMode == INTERFACEEFFECTS) {
+        currentEffect++;
+        if (currentEffect >= (sizeof(effectList) / 4)) {
+          currentEffect = 0;
+        }
+        displayEffects();
+      }
+    }
+    // Moving the joystick up, previous effect, this will become the rotary.
+    if (io.digitalRead(SX1509_JDOWN) == 0) {
+      // For effect mode only:
+      if (interfaceMode == INTERFACEEFFECTS) {
+        currentEffect--;
+        if (currentEffect <= 0) {
+          currentEffect = sizeof(effectList) / 4;
+        }
+        displayEffects();
+      }
+    }
     // Top white button toggles power for device.
     if (io.digitalRead(SX1509_WTOP) == 0) {
       power = !power;
@@ -582,6 +619,7 @@ void processInputs() {
     // The lower white button selects the next device.
     if (io.digitalRead(SX1509_WBOTTOM) == 0) {
       currentDevice++;
+      // Don't know why this needs to be divided by 4, maybe because of int vs byte sizes?
       if (currentDevice >= (sizeof(deviceNames) / 4)) {
         currentDevice = 0;
       }
@@ -589,10 +627,13 @@ void processInputs() {
     }
     // Pressing the encoder selects the settings page (currently analog values)
     if (io.digitalRead(SX1509_ENCODER) == 0) {
-      showSettings = !showSettings;
-      if (showSettings) {
+      if (interfaceMode == INTERFACEEFFECTS) {
+        // Now it becomes settings
+        interfaceMode = INTERFACESETTINGS;
         displaySettings(1);
       } else {
+        // else it becomes effects
+        interfaceMode = INTERFACEEFFECTS;
         displayEffects();
       }
     }
@@ -611,7 +652,7 @@ void processInputs() {
     buttonChanges = 0;
     encoderChanges = 0;
     faderChanges = 0;
-    if (showSettings) {
+    if (interfaceMode == INTERFACESETTINGS) {
       displaySettings(0);
     }
   }
