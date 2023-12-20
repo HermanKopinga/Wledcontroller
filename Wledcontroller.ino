@@ -14,6 +14,7 @@
 #include <SparkFunSX1509.h>  // Click here for the library: http://librarymanager/All#SparkFun_SX1509
 #include <ArduinoJson.h>
 
+#include "config.h" // to keep wifi passwords out of github
 #include "heart.h"
 #include "smiley.h"
 #include "gear.h"
@@ -109,6 +110,7 @@ void IRAM_ATTR processButtons() {
 // JSON smutz
 String serverName1 = "http://192.168.2.";
 String serverName2 = ":80/json/state";
+// Voor Maakplek String serverName1 = "http://10.11.11.";
 char serializedJson[255];  // String to put the result in before transmitting.
 
 char const *deviceNames[] = { "Decoratie",
@@ -413,7 +415,8 @@ void setup() {
 
   // Turn on Wifi
   WiFi.mode(WIFI_STA);
-  WiFi.begin("Lief delen, niet stelen.", "gewoondoen");
+  WiFi.begin("Lief delen, niet stelen.", WIFIPASSWORD);
+  //WiFi.begin("Maakplek", WIFIPASSWORD);
   Serial.print("Connecting to WiFi ..");
   for (int i = 0; i < 5; i++) {
     if (WiFi.status() != WL_CONNECTED) {
@@ -443,6 +446,8 @@ void serializeInput () {
   // Inside the brackets, 1000 is the RAM allocated to this document.
   // Use arduinojson.org/v6/assistant to compute the capacity.
   // Capacity required was initially 384, so 1000 should do nicely for a while :)
+
+  // Documentation for WLED JSON api at:  https://kno.wled.ge/interfaces/json-api/
   StaticJsonDocument<1000> commandJson;
   JsonObject seg_0 = commandJson["seg"].createNestedObject();
   JsonArray seg_0_col = seg_0.createNestedArray("col");
@@ -452,7 +457,8 @@ void serializeInput () {
     commandJson["on"] = false;
   }
   commandJson["bri"] = 255;
-  seg_0["fx"] = 0;
+  seg_0["fx"] = currentEffect;
+  seg_0["sx"] = analog_stored_state[4]/16;
   
   JsonArray seg_0_col_0 = seg_0_col.createNestedArray();
   seg_0_col_0.add(r1);
@@ -606,7 +612,7 @@ void processInputs() {
       if (interfaceMode == INTERFACEEFFECTS) {
         currentEffect--;
         if (currentEffect <= 0) {
-          currentEffect = sizeof(effectList) / 4;
+          currentEffect = (sizeof(effectList) / 4)-1;
         }
         displayEffects();
       }
