@@ -41,17 +41,11 @@ const byte SX1509_4067_S3 = 3;    // 4067 analog multiplexer
 
 const byte SX1509_INTERRUPT_PIN = 27;
 
-// For preview leds:
-#define NUMPIXELS 10 // There are only 3 visible but because of sourcing thingies I've mounted 10.
-#define LEDS_PIN 33
-
-Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
-
 SX1509 io;  // Create an SX1509 object to be used throughout
 
 #define backlightpin 4  // LCD backlight
 
-TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
+TFT_eSPI tft = TFT_eSPI();  // Display driver
 
 // Color is RGB565, 16-bit, that includes Red, Green and Blue in a 16-bit variable.
 // The way the color is packed in is the top 5 bits are red, the middle 6 bits are green and the bottom 5 bits are blue.
@@ -67,6 +61,8 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #define ACCENTED_FAVORITES 3
 #define ACCENTED_SETTINGS 4
 
+
+// Timing stuff
 unsigned long currentMillis = 0;
 unsigned long previousMillis = 0;
 unsigned long millisBreak = 100;
@@ -81,6 +77,7 @@ byte encoderChanges = 1;
 byte faderChanges = 1;
 byte status = 0;
 
+// Preview led stuff:
 // In a more ambitious moment this would have been a 2 dimensional array:
 int r1 = 0;
 int g1 = 0;
@@ -91,6 +88,31 @@ int b2 = 0;
 int r3 = 0;
 int g3 = 0;
 int b3 = 0;
+
+// From WLED source at https://github.com/Aircoookie/WLED/blob/332be7edd69853f70aebf92b83a4f0f275bcfa96/wled00/colors.cpp#L305
+// gamma 2.8 lookup table used for color correction
+uint8_t static WLEDgamma[256] = {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
+    2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
+    5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
+   10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+   17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+   25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+   37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+   51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+   69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+   90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
+  115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+  144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+  177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+  215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+
+#define NUMPIXELS 10 // There are only 3 visible but because of sourcing thingies I've mounted 10.
+#define LEDS_PIN 33
+Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
+
 
 // Analog 4067 stuff
 byte b;
@@ -113,18 +135,18 @@ String serverName2 = ":80/json/state";
 // Voor Maakplek String serverName1 = "http://10.11.11.";
 char serializedJson[255];  // String to put the result in before transmitting.
 
-char const *deviceNames[] = { "Decoratie",
+char const *deviceNames[] = { "Tester",
                               "Stok",
                               "Bank",
                               "Jongens",
-                              "Tester",
+                              "Decoratie",
                               "Kerstboom" };
 
-char const *deviceIPs[] = { "47",
+char const *deviceIPs[] = { "91",
                             "43",
                             "39",
                             "137",
-                            "91",
+                            "47",
                             "89" };
 byte currentDevice = 0;
 
@@ -286,27 +308,27 @@ void displaySettings(bool clearBack) {
   tft.printf("5 %03d", analog_stored_state[5] / 16);
   tft.setCursor(10, 130);
   tft.printf("6 %03d", analog_stored_state[6] / 16);
-  tft.setCursor(10, 150);
-  tft.printf("7 %03d", analog_stored_state[7] / 16);
-  tft.setCursor(10, 170);
-  tft.printf("8 %03d", analog_stored_state[8] / 16);
   tft.setCursor(80, 10);
-  tft.printf(" 9 %03d", analog_stored_state[9] / 16);
+  tft.printf("7 %03d", analog_stored_state[7] / 16);
   tft.setCursor(80, 30);
-  tft.printf("10 %03d", analog_stored_state[10] / 16);
+  tft.printf("8 %03d", analog_stored_state[8] / 16);
   tft.setCursor(80, 50);
-  tft.printf("11 %03d", analog_stored_state[11] / 16);
+  tft.printf(" 9 %03d", analog_stored_state[9] / 16);
   tft.setCursor(80, 70);
-  tft.printf("12 %03d", analog_stored_state[12] / 16);
+  tft.printf("10 %03d", analog_stored_state[10] / 16);
+  tft.setCursor(80, 90);
+  tft.printf("11 %03d", analog_stored_state[11] / 16);
   tft.setCursor(80, 110);
-  tft.printf("r1 %03d", r1);
+  tft.printf("12 %03d", analog_stored_state[12] / 16);
+  tft.setCursor(80, 130);
+  tft.printf("R1 %03d", r1);
 
-  tft.setCursor(10, 220);
+  /*tft.setCursor(10, 220);
   tft.print(io.digitalRead(SX1509_JUP));
   tft.print(io.digitalRead(SX1509_JDOWN));
   tft.print(io.digitalRead(SX1509_JLEFT));
   tft.print(io.digitalRead(SX1509_JRIGHT));
-  tft.print(io.digitalRead(SX1509_JMID));
+  tft.print(io.digitalRead(SX1509_JMID));*/
   tft.resetViewport();
 }
 
@@ -500,15 +522,15 @@ void readFaders() {
   int intensity1 = analog_stored_state[9];
   int intensity2 = analog_stored_state[5];
   int intensity3 = analog_stored_state[3];
-  r1 = analog_stored_state[12] * intensity1 / 65536;
-  g1 = analog_stored_state[11] * intensity1 / 65536;
-  b1 = analog_stored_state[10] * intensity1 / 65536;
-  r2 = analog_stored_state[8] * intensity2 / 65536;
-  g2 = analog_stored_state[7] * intensity2 / 65536;
-  b2 = analog_stored_state[6] * intensity2 / 65536;
-  r3 = analog_stored_state[0] * intensity3 / 65536;
-  g3 = analog_stored_state[1] * intensity3 / 65536;
-  b3 = analog_stored_state[2] * intensity3 / 65536;
+  r1 = WLEDgamma[analog_stored_state[12] * intensity1 / 65536];
+  g1 = WLEDgamma[analog_stored_state[11] * intensity1 / 65536];
+  b1 = WLEDgamma[analog_stored_state[10] * intensity1 / 65536];
+  r2 = WLEDgamma[analog_stored_state[8] * intensity2 / 65536];
+  g2 = WLEDgamma[analog_stored_state[7] * intensity2 / 65536];
+  b2 = WLEDgamma[analog_stored_state[6] * intensity2 / 65536];
+  r3 = WLEDgamma[analog_stored_state[0] * intensity3 / 65536];
+  g3 = WLEDgamma[analog_stored_state[1] * intensity3 / 65536];
+  b3 = WLEDgamma[analog_stored_state[2] * intensity3 / 65536];
 }
 
 void processInputs() {
